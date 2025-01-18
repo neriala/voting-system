@@ -5,16 +5,31 @@ app = Flask(__name__)
 CORS(app)  # אפשר תקשורת בין React ל-Flask
 
 
-def is_valid_national_id(national_id):
-    """בדיקה בסיסית לתוקף ת"ז (כולל ספרת ביקורת)."""
-    if len(national_id) != 9 or not national_id.isdigit():
-        return False
+def is_valid_national_id(ID) :
+	if(len(ID)!=9) :		
+		return False
 
-    total = sum(
-        int(national_id[i]) * (2 if i % 2 == 0 else 1)
-        for i in range(9)
-    )
-    return total % 10 == 0
+	IdList = list()
+
+	try :
+		id = list(map(int, ID))				
+	except :		
+		return False
+
+	counter = 0
+
+	for i in range(9) :
+		id[i] *= (i%2) +1
+		if(id[i]>9) :
+			id[i] -=9
+		counter += id[i]
+
+	if(counter%10 == 0) :
+		return True
+	else :
+		return False
+    
+    
 
 @app.route('/authenticate', methods=['POST'])
 def authenticate_voter():
@@ -41,8 +56,8 @@ def vote():
     national_id = data.get('national_id')
     vote = data.get('vote')
 
-    #if not national_id or not is_valid_national_id(national_id):
-     #   return jsonify({'error': 'Invalid national ID'}), 400
+    if not national_id or not is_valid_national_id(national_id):
+        return jsonify({'error': 'Invalid national ID'}), 400
 
     with sqlite3.connect("voting.db") as conn:
         voter = conn.execute("SELECT * FROM voters WHERE national_id = ?", (national_id,)).fetchone()
