@@ -13,7 +13,7 @@ def id_to_graph(id_number):
     return graph
 
 # יצירת גרף מתעודת זהות
-client_id = "123456789"  # ת"ז של הלקוח
+client_id = "123456889"  # ת"ז של הלקוח
 client_graph = id_to_graph(client_id)
 
 # יצירת גרף מבלבל (permute)
