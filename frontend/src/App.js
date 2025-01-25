@@ -1,114 +1,107 @@
 import React, { useState } from "react";
 import axios from "axios";
-import AddVoterForm from "./AddVoterForm";
+import "./App.css"; // ייבוא קובץ העיצוב
+import VoteForm from "./VoteForm"; // ייבוא רכיב טופס ההצבעה
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(false); // האם המשתמש מאומת
-  const [nationalId, setNationalId] = useState(""); // ת"ז של המשתמש
-  const [selectedOption, setSelectedOption] = useState(""); // אפשרות שנבחרה
-  const [message, setMessage] = useState(""); // הודעה למשתמש
+  const [idNumber, setIdNumber] = useState("");
+  const [message, setMessage] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // מצב לזיהוי אם המשתמש מאומת
+  const [showMessage, setShowMessage] = useState(false); // האם להציג הודעה זמנית
 
-  // פונקציה לאימות ת"ז
-  const handleAuth = async (e) => {
+  // פונקציה לבדיקת תקינות מספר זיהוי
+  function isValidNationalId(id) {
+    if (id.length !== 9 || isNaN(id)) {
+      return false;
+    }
+
+    let counter = 0;
+
+    for (let i = 0; i < 9; i++) {
+      let digit = parseInt(id[i]) * ((i % 2) + 1); // הכפלת הספרה
+      if (digit > 9) {
+        digit -= 9;
+      }
+      counter += digit;
+    }
+
+    return counter % 10 === 0;
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!nationalId) {
-      alert("Please enter your National ID!");
+    // בדיקת תקינות ת"ז
+    if (!isValidNationalId(idNumber)) {
+      setMessage("Invalid National ID. Please check the number and try again.");
       return;
     }
 
+    const graphData = generateGraphFromId(idNumber); // יצירת גרף מהת"ז
+    console.log(graphData);
     try {
-      const response = await axios.post("http://127.0.0.1:5000/authenticate", {
-        national_id: nationalId,
+      const response = await axios.post("http://127.0.0.1:5000/zkp", {
+        graph: graphData, // שליחת הגרף לשרת
       });
-      alert(response.data.message); // הצגת הודעת הצלחה
-      setAuthenticated(true); // סימון שהמשתמש מאומת
+
+      if (response.data.status === "valid") {
+        setShowMessage(true); // הצגת ההודעה
+        setMessage("You are eligible to vote!"); // הודעת הצלחה
+
+        // לאחר 3 שניות, מעבר לטופס ההצבעה
+        setTimeout(() => {
+          setShowMessage(false); // הסתרת ההודעה
+          setIsAuthenticated(true); // עדכון מצב כמשתמש מאומת
+        }, 3000);
+      } else {
+        setMessage(response.data.message);
+      }
     } catch (error) {
-      alert(error.response?.data?.error || "Authentication failed!");
+      console.error(error);
+      setMessage("An error occurred while verifying your ID.");
     }
   };
 
-  // פונקציה לשליחת ההצבעה
-  const handleVote = async (e) => {
-    e.preventDefault();
-    if (!selectedOption) {
-      alert("Please select an option!");
-      return;
+  // פונקציה ליצירת גרף מת"ז
+  const generateGraphFromId = (idNumber) => {
+    const graph = { nodes: [], edges: [] }; // גרף עם צמתים וקשתות
+    for (let i = 0; i < idNumber.length; i++) {
+      graph.nodes.push(idNumber[i]); // הוספת צומת
     }
-
-    try {
-      const response = await axios.post("http://127.0.0.1:5000/vote", {
-        national_id: nationalId,
-        vote: selectedOption,
-      });
-      setMessage(response.data.message); // הצגת הודעת הצלחה
-    } catch (error) {
-      setMessage(error.response?.data?.error || "Error submitting vote.");
+    for (let i = 0; i < idNumber.length - 1; i++) {
+      for (let j = i + 1; j < idNumber.length; j++) {
+        if ((parseInt(idNumber[i]) + parseInt(idNumber[j])) % 3 === 0) {
+          graph.edges.push([idNumber[i], idNumber[j]]); // הוספת קשת
+        }
+      }
     }
+    return graph;
   };
 
   return (
-    
-    <div style={{ textAlign: "center", padding: "20px" }}>
-      <h1>Voting System</h1>
-      
-      {!authenticated ? (
-        // טופס אימות
-        <form onSubmit={handleAuth}>
-          <h2>Authenticate to Vote</h2>
+    <div>
+      <h1>Voting System - Advanced Cryptography</h1>
+      {isAuthenticated ? (
+        // אם המשתמש מאומת, הצג את רכיב ההצבעה
+        <VoteForm nationalId={idNumber} />
+      ) : (
+        // אם המשתמש לא מאומת, הצג את טופס האימות
+        <form onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Enter National ID"
-            value={nationalId}
-            onChange={(e) => setNationalId(e.target.value)}
+            placeholder="Enter your 9-digit ID"
+            value={idNumber}
+            onChange={(e) => setIdNumber(e.target.value)}
           />
           <br />
           <button type="submit" style={{ marginTop: "10px" }}>
-            Authenticate
-          </button>
-        </form>
-      ) : (
-        // טופס הצבעה
-        <form onSubmit={handleVote}>
-          <h2>Vote for Your Candidate</h2>
-          <label>
-            <input
-              type="radio"
-              name="vote"
-              value="Candidate A"
-              onChange={(e) => setSelectedOption(e.target.value)}
-            />
-            Candidate A
-          </label>
-          <br />
-          <label>
-            <input
-              type="radio"
-              name="vote"
-              value="Candidate B"
-              onChange={(e) => setSelectedOption(e.target.value)}
-            />
-            Candidate B
-          </label>
-          <br />
-          <label>
-            <input
-              type="radio"
-              name="vote"
-              value="Candidate C"
-              onChange={(e) => setSelectedOption(e.target.value)}
-            />
-            Candidate C
-          </label>
-          <br />
-          <button type="submit" style={{ marginTop: "10px" }}>
-            Submit Vote
+            Submit
           </button>
         </form>
       )}
+      {/* הצגת הודעה זמנית */}
       {message && <p>{message}</p>}
     </div>
-    
   );
 }
 

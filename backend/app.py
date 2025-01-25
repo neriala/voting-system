@@ -1,77 +1,94 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import sqlite3
+import networkx as nx
+
 app = Flask(__name__)
 CORS(app)  # אפשר תקשורת בין React ל-Flask
 
+# נתיב מסד הנתונים
+DB_PATH = r"C:\voting-system\DB\voting.db"
 
-def is_valid_national_id(ID) :
-	if(len(ID)!=9) :		
-		return False
+### פונקציות לניהול מסד הנתונים
 
-	IdList = list()
+def get_voter_status_by_graph(received_graph):
+    """Checks if the graph matches any national ID in the database and returns voter status."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
-	try :
-		id = list(map(int, ID))				
-	except :		
-		return False
+    # שליפת כל הת"ז
+    cursor.execute("SELECT national_id, has_voted FROM voters")
+    voters = cursor.fetchall()
+    conn.close()
 
-	counter = 0
+    # בדיקת איזומורפיזם
+    for national_id, has_voted in voters:
+        graph = generate_graph_from_id(national_id)
+        if nx.is_isomorphic(received_graph, graph):
+            return national_id, has_voted
+    return None, None
 
-	for i in range(9) :
-		id[i] *= (i%2) +1
-		if(id[i]>9) :
-			id[i] -=9
-		counter += id[i]
+def mark_voter_as_voted(national_id):
+    """Marks a voter as having voted."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE voters SET has_voted = 1 WHERE national_id = ?", (national_id,))
+    conn.commit()
+    conn.close()
 
-	if(counter%10 == 0) :
-		return True
-	else :
-		return False
-    
-    
+def add_encrypted_vote(encrypted_vote, center_id):
+    """Adds an encrypted vote to the database."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO votes (encrypted_vote, center_id) VALUES (?, ?)", (encrypted_vote, center_id))
+    conn.commit()
+    conn.close()
 
-@app.route('/authenticate', methods=['POST'])
-def authenticate_voter():
-    data = request.json
-    national_id = data.get('national_id')
+### פונקציות ליצירת גרפים
 
-    if not national_id or not is_valid_national_id(national_id):
-        return jsonify({'error': 'Invalid national ID'}), 400
+def generate_graph_from_id(id_number):
+    """Generates a graph from a national ID."""
+    graph = nx.Graph()
+    edges = [
+        (int(id_number[i]), int(id_number[j]))
+        for i in range(8)
+        for j in range(i + 1, 9)
+        if (int(id_number[i]) + int(id_number[j])) % 3 == 0
+    ]
+    graph.add_edges_from(edges)
+    return graph
 
-    with sqlite3.connect("voting.db") as conn:
-        voter = conn.execute("SELECT * FROM voters WHERE national_id = ?", (national_id,)).fetchone()
-        if not voter:
-            return jsonify({'error': 'Voter not found'}), 404
+### נקודות קצה (Endpoints)
 
-        if voter[2]:  # has_voted
-            return jsonify({'error': 'You have already voted'}), 403
+@app.route('/zkp', methods=['POST'])
+def handle_zkp():
+    data = request.get_json()
+    print(data)
+    graph_data = data.get("graph")
+    encrypted_vote = data.get("encrypted_vote")
+    center_id = data.get("center_id")
 
-        return jsonify({'message': 'Authentication successful'}), 200
+    if not graph_data:
+        return jsonify({"status": "error", "message": "No graph data provided."})
 
+    # המרת המידע לגרף NetworkX
+    received_graph = nx.Graph()
+    received_graph.add_nodes_from(graph_data["nodes"])
+    received_graph.add_edges_from(graph_data["edges"])
 
-@app.route('/vote', methods=['POST'])
-def vote():
-    data = request.json
-    national_id = data.get('national_id')
-    vote = data.get('vote')
+    # בדיקת איזומורפיזם מול בסיס הנתונים
+    national_id, has_voted = get_voter_status_by_graph(received_graph)
+    if national_id is None:
+        return jsonify({"status": "invalid", "message": "ID not recognized."})
 
-    if not national_id or not is_valid_national_id(national_id):
-        return jsonify({'error': 'Invalid national ID'}), 400
+    if has_voted:
+        return jsonify({"status": "invalid", "message": "You have already voted!"})
 
-    with sqlite3.connect("voting.db") as conn:
-        voter = conn.execute("SELECT * FROM voters WHERE national_id = ?", (national_id,)).fetchone()
-        if not voter:
-            return jsonify({'error': 'Voter not found'}), 404
+    # עדכון מסד הנתונים
+    #mark_voter_as_voted(national_id)
+    #add_encrypted_vote(encrypted_vote, center_id)
 
-        if voter[2]:  # has_voted
-            return jsonify({'error': 'You have already voted'}), 403
+    return jsonify({"status": "valid", "message": "ID can voted!!"})
 
-        # עדכון מצביע להצבעה
-        conn.execute("UPDATE voters SET has_voted = 1 WHERE national_id = ?", (national_id,))
-        conn.commit()
-
-    return jsonify({'message': f'Vote for {vote} received!'}), 200
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
