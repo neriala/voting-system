@@ -1,35 +1,57 @@
 import React, { useState } from "react";
 import axios from "axios";
 import "./App.css"; // ייבוא קובץ העיצוב
+import CryptoJS from "crypto-js";
 
-function VoteForm({ nationalId }) {
-  const [selectedOption, setSelectedOption] = useState(""); // אפשרות שנבחרה
-  const [message, setMessage] = useState(""); // הודעה למשתמש
-  const [isLoading, setIsLoading] = useState(false); // מצביע לתהליך פעיל
 
-  // פונקציה לשליחת ההצבעה
+function VoteForm({ graph, sharedKey }) {
+  const [selectedOption, setSelectedOption] = useState("");
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleVote = async (e) => {
     e.preventDefault();
+  
     if (!selectedOption) {
       alert("Please select an option!");
       return;
     }
-
-    setIsLoading(true); // התחלת תהליך טעינה
-    setMessage(""); // איפוס ההודעה הקודמת
-
+  
+    if (!sharedKey) {
+      alert("Encryption key not available. Please try again.");
+      return;
+    }
+  
     try {
+      const key = CryptoJS.SHA256(sharedKey.toString()).toString();
+      const parsedKey = CryptoJS.enc.Hex.parse(key);
+
+      console.log("Parsed AES Key (Binary):", parsedKey);
+
+      const encryptedVote = CryptoJS.AES.encrypt(
+        JSON.stringify(selectedOption),
+        parsedKey, // מפתח בפורמט מתאים
+        {
+          mode: CryptoJS.mode.ECB,
+          padding: CryptoJS.pad.Pkcs7,
+        }
+      ).toString();
+      console.log("Encrypted Vote:", encryptedVote);
+
+  
+      // שליחת הנתונים לשרת
       const response = await axios.post("http://127.0.0.1:5000/vote", {
-        national_id: nationalId,
-        vote: selectedOption,
+        graph: graph,
+        encrypted_vote: encryptedVote,
+        center_id: 1,
       });
-      setMessage(response.data.message); // הצגת הודעת הצלחה
+  
+      console.log("Server Response:", response.data);
     } catch (error) {
-      setMessage(error.response?.data?.error || "Error submitting vote.");
-    } finally {
-      setIsLoading(false); // סיום תהליך טעינה
+      console.error("Error during encryption or request:", error);
     }
   };
+  
 
   return (
     <div>
@@ -55,17 +77,10 @@ function VoteForm({ nationalId }) {
           Republican Party
         </label>
         <br />
-        
-        <br />
-        <button type="submit" style={{ marginTop: "10px" }} disabled={isLoading}>
+        <button type="submit" disabled={isLoading}>
           {isLoading ? "Submitting..." : "Submit Vote"}
         </button>
       </form>
-
-      {/* מצביע תהליך */}
-      {isLoading && <p>Submitting your vote, please wait...</p>}
-
-      {/* הצגת הודעה למשתמש */}
       {message && <p>{message}</p>}
     </div>
   );
