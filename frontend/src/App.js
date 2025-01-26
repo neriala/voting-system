@@ -4,7 +4,7 @@ import "./App.css"; // ייבוא קובץ העיצוב
 import VoteForm from "./VoteForm"; // ייבוא רכיב טופס ההצבעה
 import CryptoJS from "crypto-js";
 import ResultsPage from "./ResultsPage";
-
+import ResultsVerification from "./ResultsVerification"
 function App() {
   const [idNumber, setIdNumber] = useState("");
   const [message, setMessage] = useState("");
@@ -164,6 +164,13 @@ function App() {
           >
             Go to Results
           </button>
+          {/* כפתור מעבר לדף ההוכחות */}
+          <button
+            onClick={() => setCurrentPage("resultsVerification")}
+            style={{ marginTop: "20px" }}
+          >
+            Go to ResultsVerification
+          </button>
         </div>
       )}
 
@@ -177,6 +184,18 @@ function App() {
             Back to Home
           </button>
           <ResultsPage />
+        </div>
+      )}
+      {/* דף התוצאות */}
+      {currentPage === "resultsVerification" && (
+        <div>
+          <button
+            onClick={() => setCurrentPage("home")}
+            style={{ marginBottom: "20px" }}
+          >
+            Back to Home
+          </button>
+          <ResultsVerification />
         </div>
       )}
     </div>

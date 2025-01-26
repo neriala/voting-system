@@ -26,7 +26,8 @@ def initialize_db():
             vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
             encrypted_vote TEXT NOT NULL,
             center_id INTEGER NOT NULL,
-            nonce TEXT UNIQUE
+            nonce TEXT UNIQUE,
+            vote_hash TEXT
         )
     """)
 
@@ -142,10 +143,10 @@ def generate_valid_national_id():
 
 if __name__ == "__main__":
     # הפעלת פונקציות בדיקה
-    #initialize_db()
+    initialize_db()
     #add_voter("123456789", 1)
     #add_voter("987654321", 2)
-    for _ in range(5):
+    for _ in range(10):
         national_id = generate_valid_national_id()
         center_id = (int(national_id[-1]) % 3) + 1  # מספר מרכז רנדומלי בין 1 ל-3
         add_voter(national_id, center_id)

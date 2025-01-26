@@ -55,13 +55,14 @@ def mark_voter_as_voted(national_id):
 
 def add_encrypted_vote(encrypted_vote, center_id, nonce):
     """
-    שמירת ההצבעה המוצפנת בבסיס הנתונים יחד עם nonce ייחודי.
+    שמירת ההצבעה המוצפנת בבסיס הנתונים עם hash
     """
+    vote_hash = generate_vote_hash(encrypted_vote, nonce, center_id)  # יצירת ה-hash
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO votes (encrypted_vote, center_id, nonce) VALUES (?, ?, ?)",
-        (encrypted_vote, center_id, nonce),
+        "INSERT INTO votes (encrypted_vote, center_id, nonce, vote_hash) VALUES (?, ?, ?, ?)",
+        (encrypted_vote, center_id, nonce, vote_hash),
     )
     conn.commit()
     conn.close()
@@ -310,6 +311,7 @@ def center_count_votes(center_id):
 
 @app.route('/total_count_votes', methods=['POST'])
 def total_count_votes():
+    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -328,6 +330,85 @@ def total_count_votes():
     conn.close()
     return jsonify(total_results)
 
+
+
+
+
+
+#verify results
+
+import hashlib
+import json
+
+def validate_all_hashes():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT encrypted_vote, center_id, nonce, vote_hash FROM votes")
+    votes = cursor.fetchall()
+
+    for encrypted_vote, center_id, nonce, vote_hash in votes:
+        decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
+        if not decrypted_vote:
+            continue
+
+        payload = json.loads(decrypted_vote)
+        vote = payload.get("vote")
+        computed_hash = generate_vote_hash(vote, nonce, center_id)
+        if computed_hash != vote_hash:
+            return False  # מצביע על שינוי במידע
+
+    return True
+
+def generate_vote_hash(vote, nonce, center_id):
+    """
+    יוצר hash ייחודי להצבעה
+    """
+    payload = {
+        "vote": vote,
+        "nonce": nonce,
+        "center_id": center_id,
+    }
+    payload_str = json.dumps(payload, sort_keys=True)  # מחרוזת מסודרת ליציבות
+    return hashlib.sha256(payload_str.encode()).hexdigest()
+
+
+@app.route('/publish_results', methods=['GET'])
+def publish_results():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # שליפת כל ההצבעות
+    cursor.execute("SELECT encrypted_vote, center_id FROM votes")
+    votes = cursor.fetchall()
+
+    results = {"Democratic": 0, "Republican": 0}  # תוצאות סופיות
+    vote_hashes = []
+
+    for encrypted_vote, center_id in votes:
+        # פענוח ההצבעה
+        decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
+        if not decrypted_vote:
+            continue  # דלג על הצבעות שלא הצלחנו לפענח
+
+        # המרת ההצבעה ממחרוזת JSON
+        payload = json.loads(decrypted_vote)
+        vote = payload.get("vote")
+        nonce = payload.get("nonce")
+
+        # שמירת hash לצורך אימות
+        vote_hash = generate_vote_hash(vote, nonce, center_id)
+        vote_hashes.append(vote_hash)
+
+        # ספירת ההצבעות
+        if vote in results:
+            results[vote] += 1
+
+    conn.close()
+
+    return jsonify({
+        "results": results,
+        "vote_hashes": vote_hashes,
+    })
 
 
 
