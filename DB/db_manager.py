@@ -25,7 +25,8 @@ def initialize_db():
         CREATE TABLE IF NOT EXISTS votes (
             vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
             encrypted_vote TEXT NOT NULL,
-            center_id INTEGER NOT NULL
+            center_id INTEGER NOT NULL,
+            nonce TEXT UNIQUE
         )
     """)
 
@@ -109,11 +110,43 @@ def get_tally_results():
     conn.close()
     return results
 
+import random
+
+def is_valid_national_id(id_number):
+    """בודק האם מספר ת"ז תקין לפי הפונקציה שניתנה"""
+    if len(id_number) != 9 or not id_number.isdigit():
+        return False
+
+    counter = 0
+    for i in range(9):
+        digit = int(id_number[i]) * ((i % 2) + 1)  # הכפלת הספרה
+        if digit > 9:
+            digit -= 9
+        counter += digit
+
+    return counter % 10 == 0
+
+def generate_valid_national_id():
+    """מייצר מספר ת"ז תקין"""
+    while True:
+        id_number = ''.join(str(random.randint(0, 9)) for _ in range(9))  # יצירת מספר ת"ז רנדומלי
+        if is_valid_national_id(id_number):
+            return id_number
+
+
+
+# יצירת 10 משתמשים עם מספרי ת"ז תקינים
+
+
+
+
 if __name__ == "__main__":
     # הפעלת פונקציות בדיקה
     #initialize_db()
     #add_voter("123456789", 1)
     #add_voter("987654321", 2)
-    add_voter("318638566", 2)
-    add_voter("206452856", 2)
+    for _ in range(5):
+        national_id = generate_valid_national_id()
+        center_id = (int(national_id[-1]) % 3) + 1  # מספר מרכז רנדומלי בין 1 ל-3
+        add_voter(national_id, center_id)
 

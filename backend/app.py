@@ -138,7 +138,7 @@ def submit_vote():
 
     # שמירת ההצבעה בבסיס הנתונים
     add_encrypted_vote(encrypted_vote, center_id, nonce)
-
+    print(f"###########Add {center_id}#######")
     # עדכון סטטוס המצביע
     mark_voter_as_voted(national_id)
 
@@ -198,12 +198,7 @@ def exchange_key():
 
     # חישוב המפתח המשותף
     SHARED_KEY = (int(client_public_key) ** SERVER_PRIVATE_KEY) % DH_PARAMS["p"]
-    print("EXHANC")
-    print(SHARED_KEY)
-    decrypted_vote = decrypt_vote("0J60aCffDS5W0ZiLpv9vr+kUqAPgBCl3zcxLHUtf2mYJzWDuYZay1MVXNFmuVE3DlvCHXoVDVOc8D8RS3Am39hyW3LU8MKP/Ngp+NF3YAD8=", SHARED_KEY)
-    print(decrypted_vote)
-    decrypted_vote = decrypt_vote("0J60aCffDS5W0ZiLpv9vr/kjC9z4SmlQpC88O+iLbq7MIqiKMrb91keCZh7avCJSpqfK99eagA+l457viskanxyW3LU8MKP/Ngp+NF3YAD8=", SHARED_KEY)
-    print(decrypted_vote)
+    
     return jsonify({
         "shared_key_hash": sha256(str(SHARED_KEY).encode()).hexdigest()
     })
@@ -280,6 +275,60 @@ def decrypt_vote(encrypted_vote, shared_key):
     except Exception as e:
         print(f"Error decrypting vote: {e}")
         return None
+
+
+
+
+
+
+#calc result
+@app.route('/center_count_votes/<int:center_id>', methods=['POST'])
+def center_count_votes(center_id):
+    print(f"Center ID:{center_id}")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # שליפת ההצבעות של מרכז הספירה הספציפי
+    cursor.execute("SELECT encrypted_vote FROM votes WHERE center_id = ?", (center_id,))
+    votes = cursor.fetchall()
+    print(votes)
+    results = {"Democratic": 0, "Republican": 0}
+
+    for (encrypted_vote,) in votes:
+        decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
+        if not decrypted_vote:
+            continue
+
+        payload = json.loads(decrypted_vote)
+        vote = payload.get("vote")
+
+        if vote in results:
+            results[vote] += 1
+    print(results)
+    conn.close()
+    return jsonify({"center_id": center_id, "results": results})
+
+@app.route('/total_count_votes', methods=['POST'])
+def total_count_votes():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT center_id FROM votes")
+    centers = cursor.fetchall()
+
+    total_results = {"Democratic": 0, "Republican": 0}
+
+    for (center_id,) in centers:
+        response = center_count_votes(center_id).get_json()
+        center_results = response["results"]
+
+        for candidate, count in center_results.items():
+            total_results[candidate] += count
+
+    conn.close()
+    return jsonify(total_results)
+
+
 
 
 if __name__ == "__main__":

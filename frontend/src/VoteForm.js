@@ -4,7 +4,7 @@ import "./App.css"; // ייבוא קובץ העיצוב
 import CryptoJS from "crypto-js";
 
 
-function VoteForm({ graph, sharedKey }) {
+function VoteForm({ graph, sharedKey, centerId }) {
   const [selectedOption, setSelectedOption] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +51,7 @@ function VoteForm({ graph, sharedKey }) {
       const response = await axios.post("http://127.0.0.1:5000/vote", {
         graph: graph,
         encrypted_vote: encryptedVote,
-        center_id: 1,
+        center_id: centerId,
       });
   
       console.log("Server Response:", response.data);

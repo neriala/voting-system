@@ -3,6 +3,7 @@ import axios from "axios";
 import "./App.css"; // ייבוא קובץ העיצוב
 import VoteForm from "./VoteForm"; // ייבוא רכיב טופס ההצבעה
 import CryptoJS from "crypto-js";
+import ResultsPage from "./ResultsPage";
 
 function App() {
   const [idNumber, setIdNumber] = useState("");
@@ -11,6 +12,9 @@ function App() {
   const [showMessage, setShowMessage] = useState(false); // האם להציג הודעה זמנית
   const [sharedKey, setSharedKey] = useState(null); // המפתח המשותף
   const [graph, setGraph] = useState(null); // גרף מאומת
+  const [currentPage, setCurrentPage] = useState("home"); // מצב הדף הנוכחי
+  const [centerId, setCenterId] = useState(1); // centerId מוגדר כאן
+
 
   useEffect(() => {
     performKeyExchange();
@@ -75,7 +79,14 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    // בדיקת תקינות ת"ז
+    if (!isValidNationalId(idNumber)) {
+      setMessage("Invalid National ID. Please check the number and try again.");
+      return;
+    }
+    const computedCenterId = (parseInt(idNumber[idNumber.length - 1]) % 3) + 1;
+    setCenterId(computedCenterId); // שמירת centerId
+    console.log(computedCenterId);
     const graphData = generateGraphFromId(idNumber); // יצירת גרף מת"ז
     setGraph(graphData); // שמירת הגרף
 
@@ -83,7 +94,7 @@ function App() {
       const response = await axios.post("http://127.0.0.1:5000/zkp", {
         graph: graphData,
       });
-
+      console.log(centerId);
       if (response.data.status === "valid") {
         setShowMessage(true);
         setMessage("You are eligible to vote!");
@@ -117,38 +128,57 @@ function App() {
     return graph;
   };
 
-  const encryptData = (data) => {
-    if (!sharedKey) {
-      console.error("Shared key not available for encryption.");
-      return null;
-    }
-    const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), sharedKey).toString();
-    return ciphertext;
-  };
+
 
   return (
     <div>
-      <h1>Voting System - Advanced Cryptography</h1>
-      {isAuthenticated ? (
-        // אם המשתמש מאומת, הצג את רכיב ההצבעה
-        <VoteForm graph={graph} sharedKey={sharedKey}  />
-      ) : (
-        // אם המשתמש לא מאומת, הצג את טופס האימות
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Enter your 9-digit ID"
-            value={idNumber}
-            onChange={(e) => setIdNumber(e.target.value)}
-          />
-          <br />
-          <button type="submit" style={{ marginTop: "10px" }}>
-            Submit
+      {/* ניווט בין הדפים */}
+      {currentPage === "home" && (
+        <div>
+          <h1>Voting System - Advanced Cryptography</h1>
+          {isAuthenticated ? (
+            // אם המשתמש מאומת, הצג את רכיב ההצבעה
+            <VoteForm graph={graph} sharedKey={sharedKey} centerId={centerId} />
+          ) : (
+            // אם המשתמש לא מאומת, הצג את טופס האימות
+            <form onSubmit={handleSubmit}>
+              <input
+                type="text"
+                placeholder="Enter your 9-digit ID"
+                value={idNumber}
+                onChange={(e) => setIdNumber(e.target.value)}
+              />
+              <br />
+              <button type="submit" style={{ marginTop: "10px" }}>
+                Submit
+              </button>
+            </form>
+          )}
+          {/* הצגת הודעה זמנית */}
+          {message && <p>{message}</p>}
+
+          {/* כפתור מעבר לדף התוצאות */}
+          <button
+            onClick={() => setCurrentPage("results")}
+            style={{ marginTop: "20px" }}
+          >
+            Go to Results
           </button>
-        </form>
+        </div>
       )}
-      {/* הצגת הודעה זמנית */}
-      {message && <p>{message}</p>}
+
+      {/* דף התוצאות */}
+      {currentPage === "results" && (
+        <div>
+          <button
+            onClick={() => setCurrentPage("home")}
+            style={{ marginBottom: "20px" }}
+          >
+            Back to Home
+          </button>
+          <ResultsPage />
+        </div>
+      )}
     </div>
   );
 }
