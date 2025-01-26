@@ -25,19 +25,27 @@ function VoteForm({ graph, sharedKey }) {
     try {
       const key = CryptoJS.SHA256(sharedKey.toString()).toString();
       const parsedKey = CryptoJS.enc.Hex.parse(key);
-
-      console.log("Parsed AES Key (Binary):", parsedKey);
-
+  
+      // יצירת nonce אקראי לכל הצבעה
+      const nonce = CryptoJS.lib.WordArray.random(16).toString(); // 16 בתים אקראיים
+      console.log("Generated Nonce:", nonce);
+  
+      // הצפנת ההצבעה יחד עם nonce
+      const payload = {
+        vote: selectedOption,
+        nonce: nonce,
+      };
+  
       const encryptedVote = CryptoJS.AES.encrypt(
-        JSON.stringify(selectedOption),
-        parsedKey, // מפתח בפורמט מתאים
+        JSON.stringify(payload),
+        parsedKey,
         {
           mode: CryptoJS.mode.ECB,
           padding: CryptoJS.pad.Pkcs7,
         }
       ).toString();
+  
       console.log("Encrypted Vote:", encryptedVote);
-
   
       // שליחת הנתונים לשרת
       const response = await axios.post("http://127.0.0.1:5000/vote", {
@@ -51,6 +59,7 @@ function VoteForm({ graph, sharedKey }) {
       console.error("Error during encryption or request:", error);
     }
   };
+  
   
 
   return (
