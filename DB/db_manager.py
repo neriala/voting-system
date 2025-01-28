@@ -88,28 +88,66 @@ def generate_valid_national_id():
 
 
 if __name__ == "__main__":
-    #initialize_db()
-    for _ in range(10):
-        national_id = generate_valid_national_id()
-        center_id = (int(national_id[-1]) % 3) + 1  
-        add_voter(national_id, center_id)
+    initialize_db()
+    #for _ in range(10):
+    #    national_id = generate_valid_national_id()
+    #    center_id = (int(national_id[-1]) % 3) + 1  
+    #    add_voter(national_id, center_id)
 
    
 
-    add_voter("422411736", 1)
-    add_voter("525538146", 1)
-    add_voter("790579486", 1)
-    add_voter("843150129", 1)
-    add_voter("265292490", 1)
+    add_voter("430588319", 1)
+    add_voter("124141813", 1)
+    add_voter("425626603", 1)
+    add_voter("673161303", 1)
+    add_voter("087215240", 1)
+    add_voter("296386709", 1)
+    add_voter("294146006", 1)
+    add_voter("924612419", 1)
+    add_voter("531944379", 1)
+    add_voter("734941289", 1)
+    
 
-    add_voter("269553541", 2)
-    add_voter("364782607", 2)
-    add_voter("050471887", 2)
-    add_voter("948355557", 2)
-    add_voter("173130857", 2)
 
-    add_voter("840140925", 3)
-    add_voter("810433292", 3)
-    add_voter("294343728", 3)
-    add_voter("100562065", 3)
-    add_voter("575251418", 3)
+    add_voter("710004557", 2)
+    add_voter("442201877", 2)
+    add_voter("352962831", 2)
+    add_voter("096029814", 2)
+    add_voter("509638037", 2)
+    add_voter("249903204", 2)
+    add_voter("335377701", 2)
+    add_voter("402214357", 2)
+    add_voter("676090111", 2)
+    add_voter("461375941", 2)
+    
+    add_voter("868753278", 3)
+    add_voter("505415695", 3)
+    add_voter("555595628", 3)
+    add_voter("060303658", 3)
+    add_voter("973382682", 3)
+    add_voter("970632998", 3)
+    add_voter("784859068", 3)
+    add_voter("879949295", 3)
+    add_voter("405699745", 3)
+    add_voter("192978815", 3)
+    
+
+
+
+    # add_voter("907937973", 1)
+    # add_voter("668133820", 1)
+    # add_voter("233638386", 1)
+    # add_voter("216788349", 1)
+    # add_voter("462112079", 1)
+
+    # add_voter("128663887", 2)
+    # add_voter("394357651", 2)
+    # add_voter("526376777", 2)
+    # add_voter("850058207", 2)
+    # add_voter("208030387", 2)
+
+    # add_voter("673049045", 3)
+    # add_voter("816002695", 3)
+    # add_voter("089067615", 3)
+    # add_voter("024271488", 3)
+    # add_voter("128010238", 3)
