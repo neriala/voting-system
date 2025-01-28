@@ -6,21 +6,21 @@ function VoteForm({ graph, sharedKey, centerId, onTimeout }) {
   const [selectedOption, setSelectedOption] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(10); // 10 שניות להצבעה
+  const [timeLeft, setTimeLeft] = useState(1000); 
   const graphString = JSON.stringify(graph);
   const encryptedGraph = CryptoJS.SHA256(graphString).toString();
 
-  // ספירה לאחור (טיימר)
+ 
   useEffect(() => {
     if (timeLeft <= 0) {
-      onTimeout(); // קריאה לפונקציית ניתוק
+      onTimeout(); 
     }
 
     const timer = setInterval(() => {
       setTimeLeft((prevTime) => prevTime - 1);
     }, 1000);
 
-    return () => clearInterval(timer); // נקה את הטיימר כשיש שינוי
+    return () => clearInterval(timer); 
   }, [timeLeft, onTimeout]);
 
   const handleVote = async (e) => {

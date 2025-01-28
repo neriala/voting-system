@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { Bar } from "react-chartjs-2";
-import { Chart as ChartJS } from "chart.js/auto";
+
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 
 function ResultsPage() {
   const [results, setResults] = useState(null);
@@ -35,6 +36,59 @@ function ResultsPage() {
     ],
   };
 
+  ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+  
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: {
+        labels: {
+          color: '#000', 
+          font: {
+            weight: 'bold', 
+          },
+        },
+      },
+      title: {
+        display: true,
+        text: 'Custom Chart Title',
+        color: '#000', 
+        font: {
+          weight: 'bold',
+          size: 20,
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: '#000', 
+          font: {
+            weight: 'bold', 
+          },
+        },
+      },
+      y: {
+        ticks: {
+          color: '#000', 
+          font: {
+            weight: 'bold',
+          },
+          stepSize: 1, 
+          callback: function (value) {
+
+            if (Number.isInteger(value)) {
+              return value;
+            }
+            return null;
+          },
+        },
+      },
+    },
+  };
+  
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       <h1>Voting Results</h1>
@@ -66,7 +120,7 @@ function ResultsPage() {
       </div>
       {results && (
         <div style={{ width: "60%" }}>
-          <Bar data={data} />
+           <Bar data={data} options={options} />
         </div>
       )}
     </div>

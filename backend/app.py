@@ -1,27 +1,32 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 import sqlite3
 import networkx as nx
+import base64
+import json
+import hashlib
+import os
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from hashlib import sha256
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-import base64
-from hashlib import sha256
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
-import json
-import hashlib
+from cryptography.hazmat.primitives.padding import PKCS7
 
-# משתנים לאחסון פרמטרי DH
+
+
+
+#DH PAR
 DH_PARAMS = {"p": 8262525019121781265000801114122156349216670389155538325999152622344144720466698306297330225964244933192417628506609441718343308145224722902681373613370087, "g": 2}  # ערכים בסיסיים, ניתן להחליף באלו שמתאימים יותר
-SERVER_PRIVATE_KEY = 4  # מפתח פרטי שרת
-SERVER_PUBLIC_KEY = (DH_PARAMS["g"] ** SERVER_PRIVATE_KEY) % DH_PARAMS["p"]  # מפתח ציבורי שרת
+SERVER_PRIVATE_KEY = 4  
+SERVER_PUBLIC_KEY = (DH_PARAMS["g"] ** SERVER_PRIVATE_KEY) % DH_PARAMS["p"]  
 SHARED_KEY = None
 
 
 app = Flask(__name__)
-CORS(app)  # אפשר תקשורת בין React ל-Flask
+CORS(app)  
 
-# נתיב מסד הנתונים
+# DB PATH
 DB_PATH = r"C:\voting-system\DB\voting.db"
 
 
@@ -31,37 +36,25 @@ def get_voter_status_by_graph(received_encrypted_graph):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # שליפת כל הת"ז והסטטוסים מבסיס הנתונים
     cursor.execute("SELECT national_id, has_voted FROM voters")
     voters = cursor.fetchall()
     conn.close()
 
-    print("Voters in DB:", voters)
-
     for national_id, has_voted in voters:
-        # יצירת גרף עבור תעודת זהות מבסיס הנתונים
         database_graph = generate_graph_from_id(national_id)
-        print(f"Checking ID: {national_id}")
-        print(database_graph)
-
-        # חישוב SHA-256 עבור הגרף שנוצר
-        database_encrypted_graph = compute_sha256(database_graph)
-
-        # הדפסות למעקב
         
-        print(f"Received Encrypted Graph: {received_encrypted_graph}")
-        print(f"Database Encrypted Graph: {database_encrypted_graph}")
+        database_encrypted_graph = compute_sha256(database_graph)
+        #print(f"Received Encrypted Graph: {received_encrypted_graph}")
+        #print(f"Database Encrypted Graph: {database_encrypted_graph}")
 
-        # השוואת ההצפנה של הגרף המתקבל לזו שנמצאת בבסיס הנתונים
         if received_encrypted_graph == database_encrypted_graph:
-            print(f"Match found for ID {national_id}. Voted: {has_voted}")
+            #print(f"Match found for ID {national_id}. Voted: {has_voted}")
             return national_id, has_voted
 
     return None, None
 
 
 def mark_voter_as_voted(national_id):
-    """Marks a voter as having voted."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("UPDATE voters SET has_voted = 1 WHERE national_id = ?", (national_id,))
@@ -69,13 +62,8 @@ def mark_voter_as_voted(national_id):
     conn.close()
 
 
-
-
 def add_encrypted_vote(encrypted_vote, center_id, nonce):
-    """
-    שמירת ההצבעה המוצפנת בבסיס הנתונים עם hash
-    """
-    vote_hash = generate_vote_hash(encrypted_vote, nonce, center_id)  # יצירת ה-hash
+    vote_hash = generate_vote_hash(encrypted_vote, nonce, center_id)  
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -86,18 +74,12 @@ def add_encrypted_vote(encrypted_vote, center_id, nonce):
     conn.close()
 
 
-
-
-### פונקציות ליצירת גרפים
 def generate_graph_from_id(id_number):
-    """Generates a graph from an ID and returns its nodes and edges."""
     graph = {"nodes": [], "edges": []}
 
-    # יצירת צמתים ייחודיים
     nodes = list(set(int(char) for char in id_number))
     graph["nodes"] = nodes
 
-    # יצירת קשתות בין ספרות סמוכות
     edges = []
     for i in range(len(id_number) - 1):
         edge = (int(id_number[i]), int(id_number[i + 1]))
@@ -108,18 +90,14 @@ def generate_graph_from_id(id_number):
 
 
 def compute_sha256(graph):
-    """Computes the SHA-256 of the graph."""
-    # המרת כל הטאפלים ברשימה לרשימות (JSON אינו תומך בטאפלים)
     graph["edges"] = [list(edge) for edge in graph["edges"]]
 
-    # המרת הגרף למחרוזת JSON מסודרת
     graph_string = json.dumps(graph, separators=(",", ":"))
-    print(graph_string)
     return hashlib.sha256(graph_string.encode()).hexdigest()
 
 
 
-### נקודות קצה (Endpoints)
+######### submit VOTE #########
 @app.route('/vote', methods=['POST'])
 def submit_vote():
     data = request.get_json()
@@ -129,18 +107,13 @@ def submit_vote():
     if not graph_data or not encrypted_vote or not center_id:
         return jsonify({"status": "error", "message": "Missing data."}), 400
 
-
-    # בדיקת איזומורפיזם מול בסיס הנתונים
     national_id, has_voted = get_voter_status_by_graph(graph_data)
 
-
-    # פענוח ההצבעה
     decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
 
     if not decrypted_vote:
         return jsonify({"status": "error", "message": "Failed to decrypt vote."}), 500
 
-    # המרת הנתונים המפוענחים מ-JSON
     try:
         payload = json.loads(decrypted_vote)
         nonce = payload.get("nonce")
@@ -152,7 +125,7 @@ def submit_vote():
     if not nonce:
         return jsonify({"status": "error", "message": "Vote or nonce missing."}), 400
 
-    # בדיקת ייחודיות ה-nonce
+    #check nonce unique
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM votes WHERE nonce = ?", (nonce,))
@@ -162,25 +135,60 @@ def submit_vote():
     if nonce_count > 0:
         return jsonify({"status": "error", "message": "Duplicate vote detected."}), 400
 
-    # שמירת ההצבעה בבסיס הנתונים
     add_encrypted_vote(encrypted_vote, center_id, nonce)
-    
-    # עדכון סטטוס המצביע
     mark_voter_as_voted(national_id)
 
     return jsonify({"status": "success", "message": "Vote submitted successfully!"})
 
+def remove_padding(data):
+    unpadder = PKCS7(128).unpadder() 
+    unpadded_data = unpadder.update(data) + unpadder.finalize()
+    return unpadded_data
 
 
+def get_aes_key_from_shared_key(shared_key):
+    shared_key_hash = sha256(str(shared_key).encode()).digest()
+    return shared_key_hash[:32]  
+
+
+
+def decrypt_vote(encrypted_vote, shared_key):
+    try:
+        # create aes key
+        key_bytes = get_aes_key_from_shared_key(shared_key)
+        encrypted_bytes = base64.b64decode(encrypted_vote)
+
+        # cipher ecb mode
+        cipher = Cipher(algorithms.AES(key_bytes), modes.ECB())
+        decryptor = cipher.decryptor()
+
+        # decrypt
+        decrypted_bytes = decryptor.update(encrypted_bytes) + decryptor.finalize()
+
+        # remove Padding
+        decrypted_bytes = remove_padding(decrypted_bytes)
+
+        # to string
+        decrypted_vote = decrypted_bytes.decode('utf-8')
+        return decrypted_vote
+
+    except UnicodeDecodeError as e:
+        print(f"Error decoding decrypted bytes: {e}")
+        return None
+    except Exception as e:
+        print(f"Error decrypting vote: {e}")
+        return None
+
+
+######### ZKP #########
 @app.route('/zkp', methods=['POST'])
 def handle_zkp():
     data = request.get_json()
-    encrypted_graph = data.get("encryptedGraph")  # ה-SHA-256 שהגיע מהלקוח
+    encrypted_graph = data.get("encryptedGraph") 
 
     if not encrypted_graph:
         return jsonify({"status": "error", "message": "No encrypted graph provided."})
 
-    # בדיקת התאמה מול בסיס הנתונים
     national_id, has_voted = get_voter_status_by_graph(encrypted_graph)
 
     if national_id is None:
@@ -192,8 +200,7 @@ def handle_zkp():
     return jsonify({"status": "valid", "message": "ID can vote!"})
 
 
-#### DH
-# נקודת קצה לשליחת פרמטרי DH
+######### DH #########
 @app.route('/dh/params', methods=['GET'])
 def get_dh_params():
     return jsonify({
@@ -210,7 +217,6 @@ def exchange_key():
     if not client_public_key:
         return jsonify({"error": "No client public key provided."}), 400
 
-    # חישוב המפתח המשותף
     SHARED_KEY = (int(client_public_key) ** SERVER_PRIVATE_KEY) % DH_PARAMS["p"]
     
     return jsonify({
@@ -224,10 +230,8 @@ def verify_key():
     client_shared_key_hash = data.get("shared_key_hash")
     if not client_shared_key_hash:
         return jsonify({"error": "No shared key hash provided."}), 400
-    print(client_shared_key_hash)
-    # חישוב ה-Hash בצד השרת
+
     server_shared_key_hash = sha256(str(SHARED_KEY).encode()).hexdigest()
-    print(server_shared_key_hash)
     if server_shared_key_hash == client_shared_key_hash:
         return jsonify({"status": "success", "message": "Shared key verified successfully!"})
     else:
@@ -236,122 +240,47 @@ def verify_key():
 
 
 
-#decrypt_votes
-from hashlib import sha256
-from cryptography.hazmat.primitives.padding import PKCS7
-
-def remove_padding(data):
-    """
-    הסרת Padding מהנתונים המפוענחים
-    """
-    unpadder = PKCS7(128).unpadder()  # 128 ביט (16 בתים) מתאים ל-AES
-    unpadded_data = unpadder.update(data) + unpadder.finalize()
-    return unpadded_data
-
-
-def get_aes_key_from_shared_key(shared_key):
-    """
-    יצירת מפתח AES תקין מ-shared_key באמצעות SHA256
-    """
-    shared_key_hash = sha256(str(shared_key).encode()).digest()
-    return shared_key_hash[:32]  # החזר 32 בתים (256 ביט)
-
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-import base64
-
-def decrypt_vote(encrypted_vote, shared_key):
-    """
-    פענוח ההצבעה
-    """
-    try:
-        # יצירת מפתח AES
-        key_bytes = get_aes_key_from_shared_key(shared_key)
-        encrypted_bytes = base64.b64decode(encrypted_vote)
-
-        # יצירת צופן AES במצב ECB
-        cipher = Cipher(algorithms.AES(key_bytes), modes.ECB())
-        decryptor = cipher.decryptor()
-
-        # פענוח הנתונים
-        decrypted_bytes = decryptor.update(encrypted_bytes) + decryptor.finalize()
-
-        # הסרת Padding
-        decrypted_bytes = remove_padding(decrypted_bytes)
-
-        # המרה למחרוזת
-        decrypted_vote = decrypted_bytes.decode('utf-8')
-        return decrypted_vote
-    except UnicodeDecodeError as e:
-        print(f"Error decoding decrypted bytes: {e}")
-        return None
-    except Exception as e:
-        print(f"Error decrypting vote: {e}")
-        return None
-
-
-
-def generate_tally_hash(center_id, candidate, vote_count):
-    """
-    יוצר HASH לתוצאה מסוימת של מרכז ספירה.
-    """
-    payload = {
-        "center_id": center_id,
-        "candidate": candidate,
-        "vote_count": vote_count,
-    }
-    payload_str = json.dumps(payload, sort_keys=True)
-    return hashlib.sha256(payload_str.encode()).hexdigest()
-
-
-#calc result
+######### Calc Result #########
 @app.route('/center_count_votes/<int:center_id>', methods=['POST'])
 def center_count_votes(center_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # שליפת ההצבעות של המרכז
     cursor.execute("SELECT encrypted_vote, nonce, vote_hash FROM votes WHERE center_id = ?", (center_id,))
     votes = cursor.fetchall()
 
     results = {"Democratic": 0, "Republican": 0}
-    seen_nonces = set()  # סט לבדיקת ייחודיות של nonce
+    seen_nonces = set()  
 
     for encrypted_vote, nonce, vote_hash in votes:
-        # בדיקת ייחודיות של nonce
         if nonce in seen_nonces:
             print(f"Duplicate nonce detected: {nonce}")
             continue
         seen_nonces.add(nonce)
 
-        # פענוח ההצבעה
         decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
         if not decrypted_vote:
             print(f"Failed to decrypt vote with nonce: {nonce}")
             continue
 
-        # המרת ההצבעה מ-JSON
         payload = json.loads(decrypted_vote)
         vote = payload.get("vote")
         if not vote:
             print(f"Invalid vote payload: {payload}")
             continue
 
-        # חישוב ה-HASH מחדש
+        # calc hash to check fake
         computed_hash = generate_vote_hash(encrypted_vote, nonce, center_id)
-
-        # בדיקת התאמת ה-HASH
         if computed_hash != vote_hash:
             print(f"Hash mismatch detected for vote: {vote}, nonce: {nonce}")
             continue
 
-        # עדכון תוצאות
         if vote in results:
             results[vote] += 1
 
-    # מחיקת תוצאות קודמות של המרכז לפני שמירה מחדש
+    # for case if we have last calc in table. delete and add new
     cursor.execute("DELETE FROM tally_results WHERE center_id = ?", (center_id,))
 
-    # שמירת התוצאות בטבלת tally_results
     for candidate, vote_count in results.items():
         result_hash = generate_tally_hash(center_id=center_id, candidate=candidate, vote_count=vote_count)
         cursor.execute(
@@ -373,23 +302,16 @@ def total_count_votes():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # שליפת כל המועמדים והקולות מכל המרכזים
     cursor.execute("SELECT center_id, candidate, SUM(vote_count), result_hash FROM tally_results GROUP BY center_id, candidate")
     results = cursor.fetchall()
 
     final_results = {"Democratic": 0, "Republican": 0}
 
     for center_id, candidate, vote_count, result_hash in results:
-        # חשב מחדש את ה-HASH
         computed_hash = generate_tally_hash(center_id=center_id, candidate=candidate, vote_count=vote_count)
-        print("computed_hash:", computed_hash)
-        print("result_hash:", result_hash)
-
-        # בדוק אם ה-HASHים תואמים
         if computed_hash != result_hash:
             return jsonify({"error": f"Hash mismatch detected for center {center_id}"}), 400
 
-        # הוסף את הקולות לתוצאה הסופית
         final_results[candidate] += vote_count
 
     conn.close()
@@ -397,56 +319,53 @@ def total_count_votes():
 
 
 
-
-#verify results
+def generate_tally_hash(center_id, candidate, vote_count):
+    payload = {
+        "center_id": center_id,
+        "candidate": candidate,
+        "vote_count": vote_count,
+    }
+    payload_str = json.dumps(payload, sort_keys=True)
+    return hashlib.sha256(payload_str.encode()).hexdigest()
 
 def generate_vote_hash(vote, nonce, center_id):
-    """
-    יוצר hash ייחודי להצבעה
-    """
     payload = {
         "vote": vote,
         "nonce": nonce,
         "center_id": center_id,
     }
-    payload_str = json.dumps(payload, sort_keys=True)  # מחרוזת מסודרת ליציבות
+    payload_str = json.dumps(payload, sort_keys=True) 
     return hashlib.sha256(payload_str.encode()).hexdigest()
 
-
+######### verify #########
 @app.route('/publish_results', methods=['GET'])
 def publish_results():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # שליפת כל ההצבעות
     cursor.execute("SELECT encrypted_vote, center_id FROM votes")
     votes = cursor.fetchall()
 
-    results = {"Democratic": 0, "Republican": 0}  # תוצאות סופיות
-    center_results = {}  # תוצאות לפי מרכז
+    results = {"Democratic": 0, "Republican": 0} #total result
+    center_results = {}  #by center
     vote_hashes = []
 
     for encrypted_vote, center_id in votes:
-        # פענוח ההצבעה
         decrypted_vote = decrypt_vote(encrypted_vote, SHARED_KEY)
         if not decrypted_vote:
             print(f"Failed to decrypt vote from center {center_id}")
             continue
 
-        # המרת ההצבעה ממחרוזת JSON
         payload = json.loads(decrypted_vote)
         vote = payload.get("vote")
         nonce = payload.get("nonce")
 
-        # חישוב hash להצבעה
         computed_hash = generate_vote_hash(vote, nonce, center_id)
         vote_hashes.append({"hash": computed_hash, "center_id": center_id})
 
-        # ספירת ההצבעות
         if vote in results:
             results[vote] += 1
 
-        # ספירת תוצאות לפי מרכז
         if center_id not in center_results:
             center_results[center_id] = {"Democratic": 0, "Republican": 0}
         center_results[center_id][vote] += 1
@@ -458,32 +377,6 @@ def publish_results():
         "center_results": center_results,
         "vote_hashes": vote_hashes,
     })
-
-
-
-#UTIL
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-import os
-
-def encrypt_data(data, key):
-    """
-    מצפין נתונים באמצעות המפתח המשותף
-    """
-    iv = os.urandom(16)  # ייצירת IV אקראי
-    cipher = Cipher(algorithms.AES(key.to_bytes(32, 'big')), modes.CFB(iv))
-    encryptor = cipher.encryptor()
-    encrypted_data = encryptor.update(data.encode()) + encryptor.finalize()
-    return iv + encrypted_data  # שילוב IV והנתונים המוצפנים
-
-def decrypt_data(encrypted_data, key):
-    """
-    מפענח נתונים באמצעות המפתח המשותף
-    """
-    iv = encrypted_data[:16]  # שליפת ה-IV
-    encrypted_message = encrypted_data[16:]
-    cipher = Cipher(algorithms.AES(key.to_bytes(32, 'big')), modes.CFB(iv))
-    decryptor = cipher.decryptor()
-    return decryptor.update(encrypted_message) + decryptor.finalize()
 
 
 if __name__ == "__main__":

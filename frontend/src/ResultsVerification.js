@@ -2,17 +2,17 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 function ResultsVerification() {
-  const [totalResults, setTotalResults] = useState(null); // תוצאות כוללות
-  const [centerResults, setCenterResults] = useState(null); // תוצאות לפי מרכז ספירה
-  const [voteHashes, setVoteHashes] = useState([]); // רשימת ה-Hashes להצבעות
+  const [totalResults, setTotalResults] = useState(null); 
+  const [centerResults, setCenterResults] = useState(null); 
+  const [voteHashes, setVoteHashes] = useState([]); 
 
   useEffect(() => {
     const fetchResults = async () => {
       try {
         const response = await axios.get("http://127.0.0.1:5000/publish_results");
-        setTotalResults(response.data.total_results); // תוצאות כוללות
-        setCenterResults(response.data.center_results); // תוצאות לפי מרכז
-        setVoteHashes(response.data.vote_hashes); // ה-Hashes של ההצבעות
+        setTotalResults(response.data.total_results); 
+        setCenterResults(response.data.center_results); 
+        setVoteHashes(response.data.vote_hashes); 
       } catch (error) {
         console.error("Error fetching results:", error);
       }
@@ -25,7 +25,7 @@ function ResultsVerification() {
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
       <h1 style={{ textAlign: "center", color: "#333" }}>Results Verification</h1>
 
-      {/* תוצאות כוללות */}
+
       {totalResults && (
         <div>
           <h3>Final Results (All Centers):</h3>
@@ -34,7 +34,7 @@ function ResultsVerification() {
         </div>
       )}
 
-      {/* תוצאות לפי מרכז */}
+
       {centerResults && voteHashes && (
         <div>
           <h3>Results by Center:</h3>
@@ -53,7 +53,7 @@ function ResultsVerification() {
               <h5>Vote Hashes:</h5>
               <ul style={{ listStyleType: "none", paddingLeft: "0" }}>
                 {voteHashes
-                  .filter((hashObj) => hashObj.center_id.toString() === centerId) // פילטר לפי ID מרכז
+                  .filter((hashObj) => hashObj.center_id.toString() === centerId) 
                   .map((hashObj, index) => (
                     <li
                       key={index}

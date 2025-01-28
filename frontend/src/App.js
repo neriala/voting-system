@@ -1,27 +1,27 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import "./App.css"; // ייבוא קובץ העיצוב
-import VoteForm from "./VoteForm"; // ייבוא רכיב טופס ההצבעה
+import "./App.css"; 
+import VoteForm from "./VoteForm"; 
 import CryptoJS from "crypto-js";
 import ResultsPage from "./ResultsPage";
 import ResultsVerification from "./ResultsVerification"
-import sha256 from "js-sha256";
+
 
 function App() {
   const [idNumber, setIdNumber] = useState("");
   const [message, setMessage] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // מצב לזיהוי אם המשתמש מאומת
-  const [showMessage, setShowMessage] = useState(false); // האם להציג הודעה זמנית
-  const [sharedKey, setSharedKey] = useState(null); // המפתח המשותף
-  const [graph, setGraph] = useState(null); // גרף מאומת
-  const [currentPage, setCurrentPage] = useState("home"); // מצב הדף הנוכחי
-  const [centerId, setCenterId] = useState(1); // centerId מוגדר כאן
-  const [isVoting, setIsVoting] = useState(true); // האם המשתמש בעמוד ההצבעה
+  const [isAuthenticated, setIsAuthenticated] = useState(false); 
+  const [showMessage, setShowMessage] = useState(false); 
+  const [sharedKey, setSharedKey] = useState(null); 
+  const [graph, setGraph] = useState(null); 
+  const [currentPage, setCurrentPage] = useState("home"); 
+  const [centerId, setCenterId] = useState(1); 
+  const [isVoting, setIsVoting] = useState(true); 
 
   const handleTimeout = () => {
     alert("Time is up! Redirecting to the home page...");
-    setIsVoting(false); // עדכון מצב המשתמש
-    window.location.reload(); // רענון העמוד הראשי
+    setIsVoting(false);
+    window.location.reload(); 
   };
 
   useEffect(() => {
@@ -32,26 +32,21 @@ function App() {
       const paramsResponse = await axios.get("http://127.0.0.1:5000/dh/params");
       const { p, g, server_public_key } = paramsResponse.data;
 
-      //const clientPrivateKey = Math.floor(Math.random() * 100);
-      //const clientPublicKey = (g ** clientPrivateKey) % p;
       const clientPrivateKey = 7;
       const clientPublicKey = (g ** clientPrivateKey) % p;
       const exchangeResponse = await axios.post("http://127.0.0.1:5000/dh/exchange", {
         client_public_key: clientPublicKey,
       });
       
-      const sharedKeyBase64 = exchangeResponse.data.shared_key_hash;
 
-      // חישוב המפתח המשותף בצד הלקוח
+      //calc shared key
       const sharedKey = (server_public_key ** clientPrivateKey) % p;
-      console.log(sharedKey);
       setSharedKey(sharedKey);
 
-      // חישוב ה-Hash של המפתח המשותף
       const sharedKeyHash = CryptoJS.SHA256(sharedKey.toString()).toString();
       console.log(sharedKeyHash);
 
-      // שליחת ה-Hash לשרת לאימות
+      // verify response
       const verifyResponse = await axios.post("http://127.0.0.1:5000/dh/verify", {
         shared_key_hash: sharedKeyHash,
       });
@@ -66,7 +61,7 @@ function App() {
     }
   };
 
-  // פונקציה לבדיקת תקינות מספר זיהוי
+  // check valid of israel id
   function isValidNationalId(id) {
     if (id.length !== 9 || isNaN(id)) {
       return false;
@@ -75,7 +70,7 @@ function App() {
     let counter = 0;
 
     for (let i = 0; i < 9; i++) {
-      let digit = parseInt(id[i]) * ((i % 2) + 1); // הכפלת הספרה
+      let digit = parseInt(id[i]) * ((i % 2) + 1); 
       if (digit > 9) {
         digit -= 9;
       }
@@ -88,7 +83,6 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
   
-    // בדיקת תקינות ת"ז
     if (!isValidNationalId(idNumber)) {
       setMessage("Invalid National ID. Please check the number and try again.");
       return;
@@ -96,19 +90,19 @@ function App() {
     const computedCenterId = (parseInt(idNumber[idNumber.length - 1]) % 3) + 1;
     setCenterId(computedCenterId);
     
-    const graphData = generateGraphFromId(idNumber); // יצירת גרף מת"ז מוצפן
-    setGraph(graphData); // שמירת הגרף
-    // המרת הגרף למחרוזת JSON
+    const graphData = generateGraphFromId(idNumber); //create graph
+    setGraph(graphData); 
+    
     const graphString = JSON.stringify(graphData);
     console.log(graphString);
-    // חישוב SHA-256 של הגרף
+    
     const encryptedGraph = CryptoJS.SHA256(graphString).toString();
     console.log(encryptedGraph);
 
     try {
-      // שליחת ה-SHA-256 לשרת
+      // send graph for zkp
       const response = await axios.post("http://127.0.0.1:5000/zkp", {
-        encryptedGraph, // שולחים את ה-SHA-256
+        encryptedGraph, 
       });
 
       if (response.data.status === "valid") {
@@ -129,17 +123,16 @@ function App() {
     }
   };
   
+  //create graph from id
   const generateGraphFromId = (idNumber) => {
     const graph = { nodes: [], edges: [] };
 
-    // יצירת צמתים ייחודיים
     const uniqueNodes = new Set();
     for (let char of idNumber) {
-      uniqueNodes.add(parseInt(char)); // המרת הספרה למספר והוספה לסט
+      uniqueNodes.add(parseInt(char)); 
     }
-    graph.nodes = Array.from(uniqueNodes); // המרת הסט למערך
+    graph.nodes = Array.from(uniqueNodes); 
 
-    // יצירת קשתות בין ספרות סמוכות
     for (let i = 0; i < idNumber.length - 1; i++) {
       const edge = [
         parseInt(idNumber[i]),
@@ -147,10 +140,8 @@ function App() {
       ];
       graph.edges.push(edge);
     }
-    graph.nodes.sort((a, b) => a - b); // מיון צמתים בסדר עולה
-
-    console.log("Generated Graph:", graph);
-    
+    graph.nodes.sort((a, b) => a - b); 
+ 
     return graph;
   };
   
@@ -160,15 +151,13 @@ function App() {
 
   return (
     <div>
-      {/* ניווט בין הדפים */}
       {currentPage === "home" && (
         <div>
           <h1>Voting System - Advanced Cryptography</h1>
           {isAuthenticated ? (
-            // אם המשתמש מאומת, הצג את רכיב ההצבעה
+            // if user can vote 
             <VoteForm graph={graph} sharedKey={sharedKey} centerId={centerId} onTimeout={handleTimeout} />
           ) : (
-            // אם המשתמש לא מאומת, הצג את טופס האימות
             <form onSubmit={handleSubmit}>
               <input
                 type="text"
@@ -182,17 +171,15 @@ function App() {
               </button>
             </form>
           )}
-          {/* הצגת הודעה זמנית */}
           {message && <p>{message}</p>}
-
-          {/* כפתור מעבר לדף התוצאות */}
+          {/* RESULT*/}
           <button
             onClick={() => setCurrentPage("results")}
             style={{ marginTop: "20px" }}
           >
             Go to Results
           </button>
-          {/* כפתור מעבר לדף ההוכחות */}
+          {/* VERIFY */}
           <button
             onClick={() => setCurrentPage("resultsVerification")}
             style={{ marginTop: "20px" }}
@@ -202,7 +189,6 @@ function App() {
         </div>
       )}
 
-      {/* דף התוצאות */}
       {currentPage === "results" && (
         <div>
           <button
@@ -214,7 +200,7 @@ function App() {
           <ResultsPage sharedKey={sharedKey} />
         </div>
       )}
-      {/* דף התוצאות */}
+
       {currentPage === "resultsVerification" && (
         <div>
           <button
