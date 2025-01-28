@@ -34,8 +34,12 @@ def initialize_db():
     # טבלת תוצאות ספירה
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tally_results (
-            center_id INTEGER PRIMARY KEY,
-            result TEXT NOT NULL
+            tally_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            center_id INTEGER NOT NULL,                
+            candidate TEXT NOT NULL,                  
+            vote_count INTEGER NOT NULL,             
+            result_hash TEXT NOT NULL,             
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -134,10 +138,31 @@ def generate_valid_national_id():
         if is_valid_national_id(id_number):
             return id_number
 
-
+import hashlib
 
 # יצירת 10 משתמשים עם מספרי ת"ז תקינים
+def hash_national_id(national_id):
+    """Hashes the entire national ID."""
+    return hashlib.sha256(national_id.encode()).hexdigest()
 
+def update_database_with_hashed_ids():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # שליפת כל הת"ז הגולמיות
+    cursor.execute("SELECT national_id, has_voted FROM voters")
+    voters = cursor.fetchall()
+
+    # עדכון הת"ז המוצפנות
+    for national_id, has_voted in voters:
+        hashed_id = hash_national_id(national_id)
+        cursor.execute(
+            "UPDATE voters SET national_id = ? WHERE national_id = ?",
+            (hashed_id, national_id),
+        )
+    
+    conn.commit()
+    conn.close()
 
 
 
@@ -145,9 +170,11 @@ if __name__ == "__main__":
     # הפעלת פונקציות בדיקה
     initialize_db()
     #add_voter("123456789", 1)
-    #add_voter("987654321", 2)
+    #add_voter("318638566", 2)
+    #add_voter("213152390", 2)
     for _ in range(10):
         national_id = generate_valid_national_id()
         center_id = (int(national_id[-1]) % 3) + 1  # מספר מרכז רנדומלי בין 1 ל-3
         add_voter(national_id, center_id)
 
+    #update_database_with_hashed_ids()

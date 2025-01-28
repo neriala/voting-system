@@ -5,6 +5,8 @@ import VoteForm from "./VoteForm"; // ייבוא רכיב טופס ההצבעה
 import CryptoJS from "crypto-js";
 import ResultsPage from "./ResultsPage";
 import ResultsVerification from "./ResultsVerification"
+import sha256 from "js-sha256";
+
 function App() {
   const [idNumber, setIdNumber] = useState("");
   const [message, setMessage] = useState("");
@@ -14,7 +16,13 @@ function App() {
   const [graph, setGraph] = useState(null); // גרף מאומת
   const [currentPage, setCurrentPage] = useState("home"); // מצב הדף הנוכחי
   const [centerId, setCenterId] = useState(1); // centerId מוגדר כאן
+  const [isVoting, setIsVoting] = useState(true); // האם המשתמש בעמוד ההצבעה
 
+  const handleTimeout = () => {
+    alert("Time is up! Redirecting to the home page...");
+    setIsVoting(false); // עדכון מצב המשתמש
+    window.location.reload(); // רענון העמוד הראשי
+  };
 
   useEffect(() => {
     performKeyExchange();
@@ -79,30 +87,39 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+  
     // בדיקת תקינות ת"ז
     if (!isValidNationalId(idNumber)) {
       setMessage("Invalid National ID. Please check the number and try again.");
       return;
     }
     const computedCenterId = (parseInt(idNumber[idNumber.length - 1]) % 3) + 1;
-    setCenterId(computedCenterId); // שמירת centerId
-    console.log(computedCenterId);
-    const graphData = generateGraphFromId(idNumber); // יצירת גרף מת"ז
+    setCenterId(computedCenterId);
+    
+    const graphData = generateGraphFromId(idNumber); // יצירת גרף מת"ז מוצפן
     setGraph(graphData); // שמירת הגרף
+    // המרת הגרף למחרוזת JSON
+    const graphString = JSON.stringify(graphData);
+    console.log(graphString);
+    // חישוב SHA-256 של הגרף
+    const encryptedGraph = CryptoJS.SHA256(graphString).toString();
+    console.log(encryptedGraph);
 
     try {
+      // שליחת ה-SHA-256 לשרת
       const response = await axios.post("http://127.0.0.1:5000/zkp", {
-        graph: graphData,
+        encryptedGraph, // שולחים את ה-SHA-256
       });
-      console.log(centerId);
+
       if (response.data.status === "valid") {
         setShowMessage(true);
-        setMessage("You are eligible to vote!");
+        setMessage("You are can vote!");
 
         setTimeout(() => {
           setShowMessage(false);
           setIsAuthenticated(true);
-        }, 3000);
+        }, 2000);
+        setShowMessage(false);
       } else {
         setMessage(response.data.message);
       }
@@ -111,23 +128,34 @@ function App() {
       setMessage("An error occurred while verifying your ID.");
     }
   };
-
-  // פונקציה ליצירת גרף מת"ז
+  
   const generateGraphFromId = (idNumber) => {
     const graph = { nodes: [], edges: [] };
-    for (let i = 0; i < idNumber.length; i++) {
-      graph.nodes.push(idNumber[i]);
+
+    // יצירת צמתים ייחודיים
+    const uniqueNodes = new Set();
+    for (let char of idNumber) {
+      uniqueNodes.add(parseInt(char)); // המרת הספרה למספר והוספה לסט
     }
+    graph.nodes = Array.from(uniqueNodes); // המרת הסט למערך
+
+    // יצירת קשתות בין ספרות סמוכות
     for (let i = 0; i < idNumber.length - 1; i++) {
-      for (let j = i + 1; j < idNumber.length; j++) {
-        if ((parseInt(idNumber[i]) + parseInt(idNumber[j])) % 3 === 0) {
-          graph.edges.push([idNumber[i], idNumber[j]]);
-        }
-      }
+      const edge = [
+        parseInt(idNumber[i]),
+        parseInt(idNumber[i + 1]),
+      ];
+      graph.edges.push(edge);
     }
+    graph.nodes.sort((a, b) => a - b); // מיון צמתים בסדר עולה
+
+    console.log("Generated Graph:", graph);
+    
     return graph;
   };
-
+  
+  
+  
 
 
   return (
@@ -138,7 +166,7 @@ function App() {
           <h1>Voting System - Advanced Cryptography</h1>
           {isAuthenticated ? (
             // אם המשתמש מאומת, הצג את רכיב ההצבעה
-            <VoteForm graph={graph} sharedKey={sharedKey} centerId={centerId} />
+            <VoteForm graph={graph} sharedKey={sharedKey} centerId={centerId} onTimeout={handleTimeout} />
           ) : (
             // אם המשתמש לא מאומת, הצג את טופס האימות
             <form onSubmit={handleSubmit}>
@@ -183,7 +211,7 @@ function App() {
           >
             Back to Home
           </button>
-          <ResultsPage />
+          <ResultsPage sharedKey={sharedKey} />
         </div>
       )}
       {/* דף התוצאות */}

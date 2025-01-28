@@ -12,8 +12,15 @@ function ResultsPage() {
       const response = await axios.post(url);
       setResults(response.data.results || response.data);
       setTitle(title);
-    } catch (error) {
-      console.error("Error fetching results:", error);
+    }  catch (error) {
+      if (error.response && error.response.status === 400) {
+        // שגיאה מהשרת עם קוד 400
+        alert(error.response.data.error || "Hash mismatch detected. Please contact support.");
+      } else {
+        // שגיאה אחרת
+        console.error("Error fetching results:", error);
+        alert("An error occurred while fetching the results. Please try again later.");
+      }
     }
   };
 
